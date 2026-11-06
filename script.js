@@ -1,23 +1,22 @@
 
-const STORAGE_KEY = "codevault_notes_v1";
-
-let notes = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+let notes = [];
 let currentFilter = "all";
 let searchQuery = "";
 
-const $ = (id) => document.getElementById(id);
-
+const $ = id => document.getElementById(id);
 const grid = $("notesGrid");
 const modal = $("modal");
 const form = $("noteForm");
 
-function saveNotes() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
-  $("totalCount").textContent = notes.length;
-  $("statTotal").textContent = notes.length;
-  $("statFav").textContent = notes.filter(n => n.favorite).length;
-  $("statCategories").textContent =
-    new Set(notes.map(n => n.category)).size;
+function showToast(message) {
+  const toast = $("toast");
+  toast.textContent = message;
+  toast.classList.add("show");
+
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 2500);
 }
 
 function escapeHTML(value = "") {
@@ -30,17 +29,6 @@ function escapeHTML(value = "") {
   })[char]);
 }
 
-function showToast(message) {
-  const toast = $("toast");
-  toast.textContent = message;
-  toast.classList.add("show");
-
-  clearTimeout(showToast.timer);
-  showToast.timer = setTimeout(() => {
-    toast.classList.remove("show");
-  }, 2200);
-}
-
 function formatDate(date) {
   return new Date(date).toLocaleDateString("id-ID", {
     day: "numeric",
@@ -49,19 +37,67 @@ function formatDate(date) {
   });
 }
 
+// LOAD NOTES FROM SUPABASE
+async function loadNotes() {
+  try {
+    const { data, error } = await supabaseClient
+      .from("code_notes")
+      .select("*")
+      .order("updated_at", { ascending: false });
+
+    if (error) throw error;
+
+    notes = data.map(note => ({
+      id: note.id,
+      title: note.title,
+      description: note.description || "",
+      category: note.category,
+      code: note.code,
+      favorite: note.favorite || false,
+      createdAt: note.created_at,
+      updatedAt: new Date(note.updated_at || note.created_at).getTime()
+    }));
+
+    renderNotes();
+
+    $("totalCount").textContent = notes.length;
+    showStatus("All changes saved");
+  } catch (error) {
+    console.error("Supabase error:", error);
+    showStatus("Connection error");
+    showToast("Gagal mengambil catatan: " + error.message);
+  }
+}
+
+function showStatus(message) {
+  const status = document.querySelector(".status");
+  if (status) {
+    status.innerHTML = `<i></i> ${escapeHTML(message)}`;
+  }
+}
+
+// RENDER NOTES
 function renderNotes() {
   let filtered = [...notes];
 
   if (currentFilter === "favorites") {
-    filtered = filtered.filter(n => n.favorite);
+    filtered = filtered.filter(note => note.favorite);
   } else if (currentFilter !== "all") {
-    filtered = filtered.filter(n => n.category === currentFilter);
+    filtered = filtered.filter(note =>
+      note.category === currentFilter
+    );
   }
 
   if (searchQuery) {
-    filtered = filtered.filter(n =>
-      [n.title, n.description, n.code, n.category]
-        .some(value => value.toLowerCase().includes(searchQuery))
+    filtered = filtered.filter(note =>
+      [
+        note.title,
+        note.description,
+        note.code,
+        note.category
+      ].some(value =>
+        String(value).toLowerCase().includes(searchQuery)
+      )
     );
   }
 
@@ -72,58 +108,95 @@ function renderNotes() {
   } else if (sort === "oldest") {
     filtered.sort((a, b) => a.updatedAt - b.updatedAt);
   } else {
-    filtered.sort((a, b) => a.title.localeCompare(b.title));
+    filtered.sort((a, b) =>
+      a.title.localeCompare(b.title)
+    );
   }
 
   grid.innerHTML = filtered.map(note => `
     <article class="note-card">
       <div class="note-top">
-        <span class="note-category">${escapeHTML(note.category)}</span>
+        <span class="note-category">
+          ${escapeHTML(note.category)}
+        </span>
+
         <div class="note-actions">
           <button class="icon-btn ${note.favorite ? "fav" : ""}"
-            data-action="favorite" data-id="${note.id}"
+            data-action="favorite"
+            data-id="${note.id}"
             title="Favorit">
             ${note.favorite ? "★" : "☆"}
           </button>
-          <button class="icon-btn" data-action="edit"
-            data-id="${note.id}" title="Edit">✎</button>
-          <button class="icon-btn" data-action="delete"
-            data-id="${note.id}" title="Hapus">×</button>
+
+          <button class="icon-btn"
+            data-action="edit"
+            data-id="${note.id}"
+            title="Edit">✎</button>
+
+          <button class="icon-btn"
+            data-action="delete"
+            data-id="${note.id}"
+            title="Hapus">×</button>
         </div>
       </div>
 
       <h3>${escapeHTML(note.title)}</h3>
-      <p class="note-desc">${escapeHTML(note.description || "Tidak ada deskripsi.")}</p>
+
+      <p class="note-desc">
+        ${escapeHTML(note.description || "Tidak ada deskripsi.")}
+      </p>
 
       <div class="code-preview">
         <pre>${escapeHTML(note.code)}</pre>
       </div>
 
       <div class="note-bottom">
-        <span class="note-date">${formatDate(note.updatedAt)}</span>
-        <button class="copy-btn" data-action="copy"
-          data-id="${note.id}">▣ Copy Code</button>
+        <span class="note-date">
+          ${formatDate(note.updatedAt)}
+        </span>
+
+        <button class="copy-btn"
+          data-action="copy"
+          data-id="${note.id}">
+          ▣ Copy Code
+        </button>
       </div>
     </article>
   `).join("");
 
-  $("emptyState").classList.toggle("show", filtered.length === 0);
+  $("emptyState").classList.toggle(
+    "show",
+    filtered.length === 0
+  );
+
   grid.style.display = filtered.length ? "grid" : "none";
 
-  saveNotes();
+  $("totalCount").textContent = notes.length;
+  $("statTotal").textContent = notes.length;
+  $("statFav").textContent =
+    notes.filter(note => note.favorite).length;
+
+  $("statCategories").textContent =
+    new Set(notes.map(note => note.category)).size;
 }
 
+// OPEN MODAL
 function openModal(note = null) {
   form.reset();
+
   $("noteId").value = note ? note.id : "";
-  $("modalTitle").textContent = note ? "Edit Note" : "New Note";
+  $("modalTitle").textContent =
+    note ? "Edit Note" : "New Note";
 
   $("noteTitle").value = note?.title || "";
-  $("noteDescription").value = note?.description || "";
-  $("noteCategory").value = note?.category || "HTML";
+  $("noteDescription").value =
+    note?.description || "";
+  $("noteCategory").value =
+    note?.category || "HTML";
   $("noteCode").value = note?.code || "";
 
   updateEditorLanguage();
+
   modal.classList.add("show");
   $("noteTitle").focus();
 }
@@ -133,24 +206,24 @@ function closeModal() {
 }
 
 function updateEditorLanguage() {
-  $("editorLanguage").textContent = $("noteCategory").value;
+  $("editorLanguage").textContent =
+    $("noteCategory").value;
 }
 
-form.addEventListener("submit", event => {
+// SAVE NOTES TO SUPABASE
+form.addEventListener("submit", async event => {
   event.preventDefault();
 
   const id = $("noteId").value;
-  const oldNote = notes.find(n => n.id === id);
+  const oldNote = notes.find(note => note.id === id);
 
   const note = {
-    id: id || crypto.randomUUID(),
     title: $("noteTitle").value.trim(),
     description: $("noteDescription").value.trim(),
     category: $("noteCategory").value,
     code: $("noteCode").value,
     favorite: oldNote?.favorite || false,
-    createdAt: oldNote?.createdAt || Date.now(),
-    updatedAt: Date.now()
+    updated_at: new Date().toISOString()
   };
 
   if (!note.title || !note.code.trim()) {
@@ -158,22 +231,54 @@ form.addEventListener("submit", event => {
     return;
   }
 
-  if (id) {
-    notes = notes.map(n => n.id === id ? note : n);
-  } else {
-    notes.unshift(note);
-  }
+  const saveButton = form.querySelector(
+    'button[type="submit"]'
+  );
 
-  closeModal();
-  renderNotes();
-  showToast(id ? "Catatan berhasil diperbarui!" : "Catatan berhasil disimpan!");
+  saveButton.disabled = true;
+  saveButton.textContent = "Saving...";
+
+  try {
+    let result;
+
+    if (id) {
+      result = await supabaseClient
+        .from("code_notes")
+        .update(note)
+        .eq("id", id);
+    } else {
+      delete note.updated_at;
+
+      result = await supabaseClient
+        .from("code_notes")
+        .insert([note]);
+    }
+
+    if (result.error) throw result.error;
+
+    closeModal();
+    showToast(
+      id
+        ? "Catatan berhasil diperbarui!"
+        : "Catatan berhasil disimpan!"
+    );
+
+    await loadNotes();
+
+  } catch (error) {
+    console.error(error);
+    showToast("Gagal menyimpan: " + error.message);
+  } finally {
+    saveButton.disabled = false;
+    saveButton.innerHTML = 'Save Note <span>↗</span>';
+  }
 });
 
-// Tambah catatan
+// BUTTONS
 $("addBtn").addEventListener("click", () => openModal());
+
 $("emptyAddBtn").addEventListener("click", () => openModal());
 
-// Tutup modal
 $("closeModal").addEventListener("click", closeModal);
 $("cancelModal").addEventListener("click", closeModal);
 
@@ -184,25 +289,30 @@ modal.addEventListener("click", event => {
 document.addEventListener("keydown", event => {
   if (event.key === "Escape") closeModal();
 
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    event.key.toLowerCase() === "k"
+  ) {
     event.preventDefault();
     $("searchInput").focus();
   }
 });
 
-// Ganti bahasa editor
-$("noteCategory").addEventListener("change", updateEditorLanguage);
+$("noteCategory").addEventListener(
+  "change",
+  updateEditorLanguage
+);
 
-// Search
+// SEARCH
 $("searchInput").addEventListener("input", event => {
   searchQuery = event.target.value.toLowerCase().trim();
   renderNotes();
 });
 
-// Sort
+// SORT
 $("sortSelect").addEventListener("change", renderNotes);
 
-// Filter kategori
+// CATEGORY FILTER
 document.querySelectorAll("[data-filter]").forEach(button => {
   button.addEventListener("click", () => {
     currentFilter = button.dataset.filter;
@@ -219,12 +329,13 @@ document.querySelectorAll("[data-filter]").forEach(button => {
     const title = names[currentFilter] || currentFilter;
 
     $("breadcrumbName").textContent = title;
+
     $("listTitle").textContent =
       currentFilter === "all" ? "All Notes" : title;
 
     $("listSubtitle").textContent =
       currentFilter === "favorites"
-        ? "Catatan yang lo tandai sebagai favorit."
+        ? "Catatan favorit lo."
         : currentFilter === "all"
           ? "Semua snippet kode lo ada di sini."
           : `Kumpulan catatan ${title} lo.`;
@@ -240,13 +351,14 @@ document.querySelectorAll("[data-filter]").forEach(button => {
   });
 });
 
-// Aksi pada kartu catatan
+// CARD ACTIONS
 grid.addEventListener("click", async event => {
   const button = event.target.closest("[data-action]");
   if (!button) return;
 
   const { action, id } = button.dataset;
-  const note = notes.find(n => n.id === id);
+  const note = notes.find(item => item.id === id);
+
   if (!note) return;
 
   if (action === "copy") {
@@ -254,7 +366,7 @@ grid.addEventListener("click", async event => {
       await navigator.clipboard.writeText(note.code);
       showToast("Kode berhasil disalin!");
     } catch {
-      showToast("Gagal menyalin kode. Coba akses lewat HTTPS.");
+      showToast("Gagal menyalin kode.");
     }
   }
 
@@ -263,24 +375,59 @@ grid.addEventListener("click", async event => {
   }
 
   if (action === "delete") {
-    if (confirm(`Hapus catatan "${note.title}"?`)) {
-      notes = notes.filter(n => n.id !== id);
-      renderNotes();
+    if (!confirm(`Hapus catatan "${note.title}"?`)) {
+      return;
+    }
+
+    button.disabled = true;
+
+    try {
+      const { error } = await supabaseClient
+        .from("code_notes")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
       showToast("Catatan berhasil dihapus!");
+      await loadNotes();
+
+    } catch (error) {
+      console.error(error);
+      showToast("Gagal menghapus: " + error.message);
+      button.disabled = false;
     }
   }
 
   if (action === "favorite") {
-    note.favorite = !note.favorite;
-    renderNotes();
-    showToast(note.favorite ? "Ditambahkan ke favorit!" : "Dihapus dari favorit!");
+    button.disabled = true;
+
+    try {
+      const { error } = await supabaseClient
+        .from("code_notes")
+        .update({
+          favorite: !note.favorite,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      await loadNotes();
+      showToast("Favorit berhasil diperbarui!");
+
+    } catch (error) {
+      console.error(error);
+      showToast("Gagal memperbarui favorit.");
+      button.disabled = false;
+    }
   }
 });
 
-// Mobile sidebar
+// MOBILE SIDEBAR
 $("menuBtn").addEventListener("click", () => {
   $("sidebar").classList.toggle("open");
 });
 
-// Inisialisasi
-renderNotes();
+// INITIALIZE
+loadNotes();
