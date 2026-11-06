@@ -1,0 +1,182 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#09090b">
+  <title>CodeVault — Personal Code Library</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-icon">&lt;/&gt;</div>
+      <span>Code<span class="brand-light">Vault</span></span>
+    </div>
+
+    <div class="side-label">WORKSPACE</div>
+    <nav class="navigation">
+      <button class="nav-item active" data-filter="all">
+        <span>▦</span> Semua Catatan
+        <span class="nav-count" id="totalCount">0</span>
+      </button>
+      <button class="nav-item" data-filter="favorites">
+        <span>☆</span> Favorit
+      </button>
+    </nav>
+
+    <div class="side-label category-heading">CATEGORIES</div>
+    <nav class="navigation" id="categoryNav">
+      <button class="nav-item" data-filter="HTML"> <span class="cat-dot html"></span> HTML </button>
+      <button class="nav-item" data-filter="CSS"> <span class="cat-dot css"></span> CSS </button>
+      <button class="nav-item" data-filter="JavaScript"> <span class="cat-dot js"></span> JavaScript </button>
+      <button class="nav-item" data-filter="PHP"> <span class="cat-dot php"></span> PHP </button>
+      <button class="nav-item" data-filter="Python"> <span class="cat-dot python"></span> Python </button>
+      <button class="nav-item" data-filter="Other"> <span class="cat-dot other"></span> Other </button>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="storage-card">
+        <div class="storage-icon">◈</div>
+        <div>
+          <strong>Local Storage</strong>
+          <p>Data tersimpan di browser</p>
+        </div>
+        <span class="online-dot"></span>
+      </div>
+      <div class="sidebar-footer">PERSONAL CODE LIBRARY <span>v1.0</span></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="mobile-menu" id="menuBtn" aria-label="Buka menu">☰</button>
+      <div class="breadcrumb">Workspace <span>/</span> <strong id="breadcrumbName">Semua Catatan</strong></div>
+      <div class="top-actions">
+        <span class="status"><i></i> All changes saved</span>
+        <button class="avatar">CV</button>
+      </div>
+    </header>
+
+    <section class="content">
+      <div class="welcome">
+        <div>
+          <div class="eyebrow">YOUR PERSONAL WORKSPACE</div>
+          <h1>My Code Library<span>.</span></h1>
+          <p>Simpan, kelola, dan akses semua snippet kode lo dalam satu tempat.</p>
+        </div>
+        <button class="primary-btn" id="addBtn"><span>＋</span> New Note</button>
+      </div>
+
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-top"><span>Total Notes</span><span class="stat-icon purple">▤</span></div>
+          <strong id="statTotal">0</strong>
+          <small>Semua catatan tersimpan</small>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top"><span>Favorites</span><span class="stat-icon yellow">☆</span></div>
+          <strong id="statFav">0</strong>
+          <small>Catatan favorit lo</small>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top"><span>Categories</span><span class="stat-icon blue">◈</span></div>
+          <strong id="statCategories">0</strong>
+          <small>Bahasa pemrograman</small>
+        </div>
+      </div>
+
+      <div class="section-heading">
+        <div>
+          <h2 id="listTitle">All Notes</h2>
+          <p id="listSubtitle">Semua snippet kode lo ada di sini.</p>
+        </div>
+        <div class="tools">
+          <div class="search-box">
+            <span>⌕</span>
+            <input type="search" id="searchInput" placeholder="Search notes...">
+            <kbd>⌘ K</kbd>
+          </div>
+          <select id="sortSelect" aria-label="Urutkan catatan">
+            <option value="newest">Terbaru</option>
+            <option value="oldest">Terlama</option>
+            <option value="az">A - Z</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="notes-grid" id="notesGrid"></div>
+
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">&lt;/&gt;</div>
+        <h3>Belum ada catatan</h3>
+        <p>Mulai simpan snippet kode pertama lo di sini.</p>
+        <button class="primary-btn" id="emptyAddBtn">＋ Buat Catatan</button>
+      </div>
+
+      <footer class="main-footer">
+        <span>Made for developers, by developers.</span>
+        <span>CodeVault © 2026</span>
+      </footer>
+    </section>
+  </main>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="eyebrow">CODE EDITOR</div>
+        <h2 id="modalTitle">New Note</h2>
+      </div>
+      <button class="close-btn" id="closeModal">×</button>
+    </div>
+
+    <form id="noteForm">
+      <input type="hidden" id="noteId">
+
+      <label for="noteTitle">Judul Catatan</label>
+      <input id="noteTitle" type="text" placeholder="Contoh: Responsive Navbar" required maxlength="100">
+
+      <label for="noteDescription">Deskripsi <span>(Opsional)</span></label>
+      <input id="noteDescription" type="text" placeholder="Keterangan singkat tentang kode ini...">
+
+      <label for="noteCategory">Kategori</label>
+      <select id="noteCategory">
+        <option value="HTML">HTML</option>
+        <option value="CSS">CSS</option>
+        <option value="JavaScript">JavaScript</option>
+        <option value="PHP">PHP</option>
+        <option value="Python">Python</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label for="noteCode">Source Code</label>
+      <div class="code-input-wrap">
+        <div class="code-input-header">
+          <span>● ● ●</span>
+          <span id="editorLanguage">HTML</span>
+        </div>
+        <textarea id="noteCode" spellcheck="false" placeholder="Tulis atau paste kode lo di sini..." required></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="secondary-btn" id="cancelModal">Cancel</button>
+        <button type="submit" class="primary-btn">Save Note <span>↗</span></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast">✓ Berhasil disimpan!</div>
+
+<script src="script.js"></script>
+</body>
+</html>
